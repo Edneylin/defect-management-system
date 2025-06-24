@@ -13,6 +13,17 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import threading
 import requests
+import os
+
+# 資料庫路徑配置
+def get_db_path():
+    """獲取資料庫路徑"""
+    os.makedirs('data', exist_ok=True)
+    return os.path.join('data', 'defect_management.db')
+
+def get_db_connection():
+    """獲取資料庫連接"""
+    return sqlite3.connect(get_db_path(), timeout=30)
 
 # 設定頁面配置
 st.set_page_config(
@@ -112,7 +123,7 @@ st.markdown("""
 
 
 def init_database():
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # 創建用戶表
@@ -1109,8 +1120,15 @@ def user_management_page():
 
 
 def main():
-    # 初始化資料庫
-    init_database()
+    # 初始化資料庫（添加錯誤處理）
+    try:
+        init_database()
+        st.session_state.db_initialized = True
+    except Exception as e:
+        st.error(f"❌ 資料庫初始化失敗: {str(e)}")
+        st.error("請檢查系統配置或聯繫管理員")
+        st.session_state.db_initialized = False
+        st.stop()
 
     # 初始化認證狀態
     if 'authenticated' not in st.session_state:

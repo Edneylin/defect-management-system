@@ -4,9 +4,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 安裝系統依賴
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y gcc curl && rm -rf /var/lib/apt/lists/*
 
 # 升級pip
 RUN pip install --upgrade pip
@@ -19,10 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 複製應用程式文件
 COPY test_app.py .
-COPY .streamlit/ .streamlit/
 
 # 創建必要目錄
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data /app/.streamlit
 
 # 設定環境變數
 ENV STREAMLIT_SERVER_PORT=8501

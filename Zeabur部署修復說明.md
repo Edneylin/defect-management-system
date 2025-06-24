@@ -91,7 +91,7 @@ git push origin main
 mv Dockerfile Dockerfile.backup
 mv Dockerfile.no-healthcheck Dockerfile
 git add Dockerfile
-git commit -m "fix: 移除健康檢查以修復部署問題"
+git commit -m "fix: 切換到無健康檢查版本"
 git push origin main
 ```
 
