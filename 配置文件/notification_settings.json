@@ -1,0 +1,18 @@
+{
+  "email_enabled": false,
+  "email_smtp_server": "smtp.gmail.com",
+  "email_smtp_port": 587,
+  "email_username": "",
+  "email_password": "",
+  "email_recipients": [],
+  "notification_intervals": {
+    "A級": 2,
+    "B級": 4,
+    "C級": 8
+  },
+  "processing_deadlines": {
+    "A級": 4,
+    "B級": 8,
+    "C級": 24
+  }
+}

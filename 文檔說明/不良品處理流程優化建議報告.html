@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>不良品處理流程優化建議報告</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            line-height: 1.6;
+            color: #1e293b;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+            color: white;
+            padding: 40px 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(37, 99, 235, 0.3);
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            text-align: center;
+            opacity: 0.9;
+        }
+        
+        .section {
+            background: white;
+            margin: 25px 0;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #2563eb;
+        }
+        
+        .section h2 {
+            color: #2563eb;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .section h3 {
+            color: #3b82f6;
+            font-size: 1.4em;
+            margin: 20px 0 15px 0;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
+        }
+        
+        .section h4 {
+            color: #60a5fa;
+            font-size: 1.2em;
+            margin: 15px 0 10px 0;
+        }
+        
+        .emoji {
+            font-size: 1.2em;
+            margin-right: 10px;
+        }
+        
+        .highlight-box {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 1px solid #93c5fd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        
+        .pain-point {
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            border: 1px solid #fca5a5;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        
+        .solution-box {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border: 1px solid #86efac;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        
+        .process-flow {
+            background: #f8fafc;
+            border: 2px solid #2563eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            font-family: monospace;
+            font-size: 1.1em;
+            text-align: center;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        th {
+            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: bold;
+        }
+        
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        
+        tr:hover {
+            background: #eff6ff;
+        }
+        
+        ul, ol {
+            margin: 15px 0;
+            padding-left: 30px;
+        }
+        
+        li {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+        
+        .timeline {
+            background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+            border: 1px solid #fbbf24;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        
+        .kpi-box {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .kpi-item {
+            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+        }
+        
+        .kpi-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            display: block;
+        }
+        
+        .kpi-label {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .footer {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-top: 40px;
+            text-align: center;
+        }
+        
+        .system-interface {
+            background: #f1f5f9;
+            border: 2px solid #60a5fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            font-family: monospace;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .section {
+                padding: 20px;
+            }
+            
+            .kpi-box {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 不良品處理流程優化建議報告</h1>
+            <p>系統化解決方案 - 提升生產效率與品質管理</p>
+        </div>
+
+        <div class="section">
+            <h2><span class="emoji">🔍</span>現有流程痛點分析</h2>
+            
+            <div class="pain-point">
+                <h3>主要痛點識別</h3>
+                <ul>
+                    <li><strong>跨部門簽核流程冗長</strong>：工程→品保→製造的線性流程造成時間浪費</li>
+                    <li><strong>權責判定時間過長</strong>：需要聯繫權責單位增加等待時間</li>
+                    <li><strong>缺乏時效管控</strong>：沒有明確的處理時限，影響3天結單目標</li>
+                    <li><strong>資訊不透明</strong>：各部門無法即時掌握處理進度</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2><span class="emoji">🚀</span>優化建議方案</h2>
+            
+            <h3>方案一：流程優化 - 並行處理機制</h3>
+            <div class="solution-box">
+                <h4>改善後流程設計</h4>
+                <div class="process-flow">
+                    不良品發現 → 同時通知三部門 → 並行初判 → 快速會議決策 → 立即執行<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;↓&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+                    &nbsp;&nbsp;(即時)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(1小時內)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(2小時內)&nbsp;&nbsp;&nbsp;(4小時內)&nbsp;&nbsp;&nbsp;(當日完成)
+                </div>
+                
+                <h4>具體操作步驟</h4>
+                <ol>
+                    <li><strong>即時通知機制</strong>：LINE群組或系統推播同時通知工程、品保、製造</li>
+                    <li><strong>並行初判</strong>：各部門同時進行初步判定（2小時內完成）</li>
+                    <li><strong>快速決策會議</strong>：異常情況召開緊急會議（30分鐘內）</li>
+                    <li><strong>權責預設機制</strong>：建立標準權責判定表，減少討論時間</li>
+                </ol>
+            </div>
+
+            <h3>方案二：分級處理機制</h3>
+            <div class="highlight-box">
+                <h4>不良品分級標準</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>等級</th>
+                            <th>影響程度</th>
+                            <th>處理時限</th>
+                            <th>權責判定</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>A級</strong></td>
+                            <td>影響交期/功能</td>
+                            <td>4小時內</td>
+                            <td>工程主導</td>
+                        </tr>
+                        <tr>
+                            <td><strong>B級</strong></td>
+                            <td>影響品質/外觀</td>
+                            <td>8小時內</td>
+                            <td>品保主導</td>
+                        </tr>
+                        <tr>
+                            <td><strong>C級</strong></td>
+                            <td>輕微缺陷</td>
+                            <td>24小時內</td>
+                            <td>製造主導</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>方案三：數位化管理系統</h3>
+            <div class="solution-box">
+                <h4>系統核心功能</h4>
+                <ul>
+                    <li><strong>即時通知模組</strong>：多管道通知（手機APP + LINE + Email + 系統彈窗）</li>
+                    <li><strong>智能權責判定</strong>：根據不良品類型自動分派責任部門</li>
+                    <li><strong>進度追蹤儀表板</strong>：即時顯示所有不良品處理狀態</li>
+                    <li><strong>時效預警機制</strong>：處理時間倒數計時，超時自動升級</li>
+                </ul>
+                
+                <h4>系統介面設計</h4>
+                <div class="system-interface">
+                    🔵 不良品處理中心<br>
+                    ├── 📊 即時儀表板 (主色調: #2563eb)<br>
+                    ├── ⚡ 緊急處理區 (警示色: #ef4444)<br>
+                    ├── 📋 待處理清單 (次要色: #3b82f6)<br>
+                    ├── ✅ 已完成項目 (成功色: #10b981)<br>
+                    └── 📈 統計分析 (輔助色: #60a5fa)
+                </div>
+            </div>
+
+            <h3>方案四：標準化權責判定表</h3>
+            <div class="highlight-box">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>不良品類型</th>
+                            <th>主要責任部門</th>
+                            <th>協助部門</th>
+                            <th>處理時限</th>
+                            <th>備註</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>尺寸超差</td>
+                            <td>工程部</td>
+                            <td>製造部</td>
+                            <td>4小時</td>
+                            <td>需檢討製程參數</td>
+                        </tr>
+                        <tr>
+                            <td>表面缺陷</td>
+                            <td>品保部</td>
+                            <td>工程部</td>
+                            <td>6小時</td>
+                            <td>需確認品質標準</td>
+                        </tr>
+                        <tr>
+                            <td>組裝不良</td>
+                            <td>製造部</td>
+                            <td>工程部</td>
+                            <td>2小時</td>
+                            <td>可現場快速處理</td>
+                        </tr>
+                        <tr>
+                            <td>材料問題</td>
+                            <td>品保部</td>
+                            <td>採購部</td>
+                            <td>8小時</td>
+                            <td>需聯繫供應商</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2><span class="emoji">🛠️</span>立即可執行的改善措施</h2>
+            
+            <div class="timeline">
+                <h3>短期改善（1週內）</h3>
+                <ul>
+                    <li><strong>建立LINE群組</strong>：「不良品快速處理群」</li>
+                    <li><strong>制定處理時限</strong>：各類不良品明確時間要求</li>
+                    <li><strong>指派專責人員</strong>：各部門指派不良品處理專員</li>
+                    <li><strong>建立升級機制</strong>：超時自動通知部門主管</li>
+                </ul>
+            </div>
+
+            <div class="timeline">
+                <h3>中期改善（1個月內）</h3>
+                <ul>
+                    <li><strong>導入簡易系統</strong>：使用Excel或Google Sheets建立追蹤表</li>
+                    <li><strong>標準化流程</strong>：制定不良品處理SOP</li>
+                    <li><strong>定期檢討會議</strong>：每週召開不良品處理檢討會</li>
+                    <li><strong>績效指標</strong>：建立處理時效KPI</li>
+                </ul>
+            </div>
+
+            <div class="timeline">
+                <h3>長期改善（3個月內）</h3>
+                <ul>
+                    <li><strong>開發專用系統</strong>：整合到現有PDM系統</li>
+                    <li><strong>AI輔助判定</strong>：根據歷史資料自動建議處理方案</li>
+                    <li><strong>供應商整合</strong>：外部供應商也納入系統管理</li>
+                    <li><strong>持續優化</strong>：根據使用數據不斷改善流程</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2><span class="emoji">📊</span>預期效果與KPI指標</h2>
+            
+            <div class="kpi-box">
+                <div class="kpi-item">
+                    <span class="kpi-number">1天</span>
+                    <span class="kpi-label">處理時間縮短至</span>
+                </div>
+                <div class="kpi-item">
+                    <span class="kpi-number">95%</span>
+                    <span class="kpi-label">工單3天內結單率</span>
+                </div>
+                <div class="kpi-item">
+                    <span class="kpi-number">50%</span>
+                    <span class="kpi-label">溝通時間減少</span>
+                </div>
+                <div class="kpi-item">
+                    <span class="kpi-number">零</span>
+                    <span class="kpi-label">不良品擴散事件</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2><span class="emoji">💡</span>成功關鍵因素</h2>
+            
+            <div class="highlight-box">
+                <ol>
+                    <li><strong>高層支持</strong>：需要管理層推動跨部門合作</li>
+                    <li><strong>標準化</strong>：建立明確的處理標準和時限</li>
+                    <li><strong>系統化</strong>：逐步導入數位化管理工具</li>
+                    <li><strong>持續改善</strong>：定期檢討和優化流程</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="footer">
+            <h3>📈 結論與建議</h3>
+            <p>這套方案能夠有效解決目前面臨的結單時效問題，同時建立長期的品質管理機制。</p>
+            <p>建議先從簡單的並行處理和時限管控開始，再逐步導入數位化系統。</p>
+            <br>
+            <p><strong>報告生成時間：</strong> <span id="datetime"></span></p>
+        </div>
+    </div>
+
+    <script>
+        // 顯示當前時間
+        document.getElementById('datetime').textContent = new Date().toLocaleString('zh-TW');
+    </script>
+</body>
+</html> 

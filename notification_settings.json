@@ -1,0 +1,35 @@
+{
+  "email_enabled": true,
+  "email_smtp_server": "smtp.gmail.com",
+  "email_smtp_port": 587,
+  "email_username": "eddgu95@gmail.com",
+  "email_password": "Queenie720621",
+  "email_recipients": [
+    "edney.lin@gmail.com"
+  ],
+  "wechat_enabled": false,
+  "wechat_webhook_urls": [],
+  "wechat_mentioned_users": [],
+  "telegram_enabled": false,
+  "telegram_bot_token": "",
+  "telegram_chat_ids": [],
+  "dingtalk_enabled": false,
+  "dingtalk_webhook_urls": [],
+  "dingtalk_at_mobiles": [],
+  "dingtalk_at_all": false,
+  "sms_enabled": false,
+  "sms_phone_numbers": [],
+  "notification_methods": [
+    "📧 郵件通知"
+  ],
+  "processing_deadlines": {
+    "A級": 4,
+    "B級": 8,
+    "C級": 24
+  },
+  "notification_intervals": {
+    "A級": 2,
+    "B級": 4,
+    "C級": 8
+  }
+}

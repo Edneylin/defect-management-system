@@ -1,0 +1,14 @@
+{
+  "name": "不良品管理系統",
+  "type": "streamlit",
+  "environment": {
+    "STREAMLIT_SERVER_PORT": "8501",
+    "STREAMLIT_SERVER_ADDRESS": "0.0.0.0"
+  },
+  "build": {
+    "commands": [
+      "pip install -r requirements.txt"
+    ]
+  },
+  "start": "streamlit run defect_management_system.py --server.port=8501 --server.address=0.0.0.0"
+} 

@@ -1,0 +1,49 @@
+{
+  "responsible_persons": [
+    {
+      "name": "林進華",
+      "department": "工程部",
+      "display_name": "工程部-林進華"
+    },
+    {
+      "name": "唐文輝",
+      "department": "工程部",
+      "display_name": "工程部-唐文輝"
+    },
+    {
+      "name": "陳信奇",
+      "department": "工程部",
+      "display_name": "工程部-陳信奇"
+    },
+    {
+      "name": "王贊智",
+      "department": "工程部",
+      "display_name": "工程部-王贊智"
+    },
+    {
+      "name": "陳聖文",
+      "department": "工程部",
+      "display_name": "工程部-陳聖文"
+    },
+    {
+      "name": "趙運芝",
+      "department": "工程部",
+      "display_name": "工程部-趙運芝"
+    },
+    {
+      "name": "許書維",
+      "department": "品保部",
+      "display_name": "品保部-許書維"
+    },
+    {
+      "name": "翁維禧",
+      "department": "品保部",
+      "display_name": "品保部-翁維禧"
+    },
+    {
+      "name": "曾志原",
+      "department": "品保部",
+      "display_name": "品保部-曾志原"
+    }
+  ]
+}

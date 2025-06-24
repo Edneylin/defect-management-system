@@ -1,0 +1,19 @@
+{
+  "responsible_persons": [
+    {
+      "name": "唐文輝",
+      "department": "工程部",
+      "display_name": "工程部-唐文輝"
+    },
+    {
+      "name": "許書維",
+      "department": "品保部",
+      "display_name": "品保部-許書維"
+    },
+    {
+      "name": "翁維禧",
+      "department": "品保部",
+      "display_name": "品保部-翁維禧"
+    }
+  ]
+}
