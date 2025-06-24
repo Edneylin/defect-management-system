@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-不良品處理管理系統
-支持完整的不良品生命週期管理，包括登錄、追蹤、分析和通知功能
-"""
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -11,7 +5,7 @@ from datetime import datetime, timedelta
 import json
 import sqlite3
 import hashlib
-from typing import Dict, List
+from typing import Dict, List, Optional
 import time
 import re
 import smtplib
@@ -19,19 +13,6 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import threading
 import requests
-
-# 設置SQLite支持UTF-8
-sqlite3.register_adapter(str, lambda s: s.encode('utf-8'))
-sqlite3.register_converter("TEXT", lambda b: b.decode('utf-8'))
-
-def get_db_connection():
-    """
-    獲取數據庫連接，確保UTF-8編碼支持
-    """
-    conn = sqlite3.connect('defect_management.db', detect_types=sqlite3.PARSE_DECLTYPES)
-    conn.execute("PRAGMA encoding = 'UTF-8'")
-    conn.row_factory = sqlite3.Row  # 支持字典式訪問
-    return conn
 
 # 設定頁面配置
 st.set_page_config(
@@ -131,7 +112,7 @@ st.markdown("""
 
 
 def init_database():
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     cursor = conn.cursor()
 
     # 創建用戶表
@@ -219,10 +200,9 @@ def init_database():
         cursor.execute('ALTER TABLE defects ADD COLUMN approval_result TEXT')
         st.info("📋 資料庫已更新，新增簽核結果功能")
 
-    # 檢查是否需要新增supplier欄位（為了向後兼容）
+    # 檢查是否需要新增supplier欄位（為了向後兼容，保留但不再使用）
     if 'supplier' not in columns:
         cursor.execute('ALTER TABLE defects ADD COLUMN supplier TEXT')
-        st.info("🏭 資料庫已更新，新增供應商功能")
 
     # 檢查是否需要新增component欄位（為了向後兼容）
     if 'component' not in columns:
@@ -246,10 +226,10 @@ def init_database():
         cursor.execute('ALTER TABLE defects ADD COLUMN third_approval_status TEXT')
         st.info("✅ 資料庫已更新，新增第三責任人簽核狀態功能")
 
-    # 檢查是否需要新增supplier欄位
-    if 'supplier' not in columns:
-        cursor.execute('ALTER TABLE defects ADD COLUMN supplier TEXT')
-        st.info("🏭 資料庫已更新，新增供應商功能")
+    # 檢查是否需要新增defective_component欄位（零件不良）
+    if 'defective_component' not in columns:
+        cursor.execute('ALTER TABLE defects ADD COLUMN defective_component TEXT')
+        st.info("🔧 資料庫已更新，新增零件不良追蹤功能")
 
     # 檢查並修復現有記錄的部門分配（只在必要時執行）
     try:
@@ -312,9 +292,9 @@ def verify_password(password: str, password_hash: str) -> bool:
     """驗證密碼"""
     return hash_password(password) == password_hash
 
-def authenticate_user(username: str, password: str) -> Dict:
+def authenticate_user(username: str, password: str) -> Optional[Dict]:
     """用戶認證"""
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -324,27 +304,27 @@ def authenticate_user(username: str, password: str) -> Dict:
 
     user = cursor.fetchone()
 
-    if user and verify_password(password, user['password_hash']):
+    if user and verify_password(password, user[2]):
         # 更新最後登入時間
-        cursor.execute('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', (user['id'],))
+        cursor.execute('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', (user[0],))
         conn.commit()
         conn.close()
 
         return {
-            'id': user['id'],
-            'username': user['username'],
-            'name': user['name'],
-            'department': user['department'],
-            'position': user['position'],
-            'role': user['role']
+            'id': user[0],
+            'username': user[1],
+            'name': user[3],
+            'department': user[4],
+            'position': user[5],
+            'role': user[6]
         }
 
     conn.close()
-    return {}
+    return None
 
 def get_all_users():
     """獲取所有用戶"""
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -359,7 +339,7 @@ def get_all_users():
 def add_user(username: str, password: str, name: str, department: str, position: str, role: str) -> bool:
     """添加新用戶"""
     try:
-        conn = get_db_connection()
+        conn = sqlite3.connect('defect_management.db')
         cursor = conn.cursor()
 
         password_hash = hash_password(password)
@@ -377,7 +357,7 @@ def add_user(username: str, password: str, name: str, department: str, position:
 
 def update_user_status(user_id: int, is_active: bool):
     """更新用戶狀態"""
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     cursor = conn.cursor()
 
     cursor.execute('UPDATE users SET is_active = ? WHERE id = ?', (1 if is_active else 0, user_id))
@@ -387,7 +367,7 @@ def update_user_status(user_id: int, is_active: bool):
 
 def reset_user_password(user_id: int, new_password: str):
     """重設用戶密碼"""
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     cursor = conn.cursor()
 
     password_hash = hash_password(new_password)
@@ -401,7 +381,7 @@ def reset_user_password(user_id: int, new_password: str):
 
 def get_next_package_number(work_order):
     """獲取指定工單的下一個包數"""
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -415,7 +395,7 @@ def get_next_package_number(work_order):
 
 def get_work_order_stats(work_order):
     """獲取指定工單的統計信息"""
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     cursor = conn.cursor()
 
     # 獲取該工單的總不良數量和工單總數
@@ -444,7 +424,7 @@ def get_work_order_stats(work_order):
     }
 
 def add_defect(defect_data):
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     cursor = conn.cursor()
 
     # 計算截止時間
@@ -491,13 +471,13 @@ def add_defect(defect_data):
     return defect_id
 
 def get_defects(status=None):
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     query = '''
         SELECT id, work_order, product_name, defect_type, defect_level, quantity,
                package_number, description, responsible_dept, status, created_time, deadline,
                assigned_person, resolution, completion_time, logged_by,
                primary_dept, secondary_dept, primary_person, secondary_person, approval_status, approval_result,
-               work_order_total_qty, supplier, component, third_dept, third_person, third_approval_status
+               work_order_total_qty, supplier, component, defective_component, third_dept, third_person, third_approval_status
         FROM defects
     '''
 
@@ -507,10 +487,31 @@ def get_defects(status=None):
 
     df = pd.read_sql_query(query, conn, params=(status,) if status else None)
     conn.close()
+    
+    # 確保所有文本字段都是字符串格式，避免bytes類型問題
+    text_columns = ['work_order', 'product_name', 'defect_type', 'defect_level', 'description', 
+                   'responsible_dept', 'status', 'assigned_person', 'resolution', 'logged_by',
+                   'primary_dept', 'secondary_dept', 'primary_person', 'secondary_person', 
+                   'approval_status', 'approval_result', 'supplier', 'component', 'defective_component', 'third_dept', 
+                   'third_person', 'third_approval_status']
+    
+    for col in text_columns:
+        if col in df.columns:
+            # 處理bytes類型的中文字符
+            def decode_if_bytes(x):
+                if isinstance(x, bytes):
+                    try:
+                        return x.decode('utf-8')
+                    except:
+                        return str(x)
+                return str(x) if pd.notna(x) else ''
+            
+            df[col] = df[col].apply(decode_if_bytes).replace('nan', '').replace('None', '')
+    
     return df
 
 def update_defect_status(defect_id, new_status, resolution=None, operator=None):
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     cursor = conn.cursor()
 
     if new_status == '已完成':
@@ -537,7 +538,7 @@ def update_defect_status(defect_id, new_status, resolution=None, operator=None):
 
 def transfer_defect(defect_id, target_dept, transfer_reason, operator=None):
     """轉交不良品到其他部門"""
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     cursor = conn.cursor()
 
     # 先獲取不良品的責任部門和負責人信息
@@ -550,11 +551,7 @@ def transfer_defect(defect_id, target_dept, transfer_reason, operator=None):
     assigned_person = ''
 
     if defect_info:
-        primary_dept = defect_info['primary_dept']
-        secondary_dept = defect_info['secondary_dept']
-        primary_person = defect_info['primary_person']
-        secondary_person = defect_info['secondary_person']
-        defect_type = defect_info['defect_type']
+        primary_dept, secondary_dept, primary_person, secondary_person, defect_type = defect_info
 
         # 如果轉交到次要責任部門，使用次要負責人
         if target_dept == secondary_dept and secondary_person:
@@ -591,7 +588,7 @@ def transfer_defect(defect_id, target_dept, transfer_reason, operator=None):
     conn.close()
 
 def get_processing_logs(defect_id):
-    conn = get_db_connection()
+    conn = sqlite3.connect('defect_management.db')
     query = '''
         SELECT action, department, operator, comment, timestamp
         FROM processing_logs
@@ -605,7 +602,7 @@ def get_processing_logs(defect_id):
 def delete_defect(defect_id, operator=None):
     """刪除不良品記錄（包含相關的處理記錄）"""
     try:
-        conn = get_db_connection()
+        conn = sqlite3.connect('defect_management.db')
         cursor = conn.cursor()
 
         # 先獲取要刪除的記錄信息（用於記錄日誌）
@@ -613,9 +610,7 @@ def delete_defect(defect_id, operator=None):
         defect_info = cursor.fetchone()
 
         if defect_info:
-            work_order = defect_info['work_order']
-            product_name = defect_info['product_name']
-            defect_type = defect_info['defect_type']
+            work_order, product_name, defect_type = defect_info
 
             # 刪除處理記錄
             cursor.execute("DELETE FROM processing_logs WHERE defect_id = ?", (defect_id,))
@@ -854,7 +849,7 @@ class NotificationManager:
 
     def check_overdue_defects(self):
         """檢查逾期不良品"""
-        conn = get_db_connection()
+        conn = sqlite3.connect('defect_management.db')
         query = """
         SELECT * FROM defects
         WHERE status IN ('待處理', '處理中')
@@ -1225,13 +1220,18 @@ def dashboard_page():
         st.warning("📝 目前沒有不良品資料，請先登記不良品資訊。")
         return
 
+    # 確保數據格式正確，轉換所有可能的bytes類型為字符串
+    for col in all_defects.columns:
+        if all_defects[col].dtype == 'object':
+            all_defects[col] = all_defects[col].astype(str)
+
     # 統計指標
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         total_quantity = all_defects['quantity'].sum()
         total_records = len(all_defects)
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card">
             <h3>{total_quantity}</h3>
             <p>總不良品數</p>
@@ -1242,7 +1242,7 @@ def dashboard_page():
     with col2:
         pending_quantity = all_defects[all_defects['status'] == '待處理']['quantity'].sum()
         pending_records = len(all_defects[all_defects['status'] == '待處理'])
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card">
             <h3>{pending_quantity}</h3>
             <p>待處理</p>
@@ -1253,7 +1253,7 @@ def dashboard_page():
     with col3:
         processing_quantity = all_defects[all_defects['status'] == '處理中']['quantity'].sum()
         processing_records = len(all_defects[all_defects['status'] == '處理中'])
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card">
             <h3>{processing_quantity}</h3>
             <p>處理中</p>
@@ -1264,7 +1264,7 @@ def dashboard_page():
     with col4:
         completed_quantity = all_defects[all_defects['status'] == '已完成']['quantity'].sum()
         completed_records = len(all_defects[all_defects['status'] == '已完成'])
-        st.markdown("""
+        st.markdown(f"""
         <div class="metric-card">
             <h3>{completed_quantity}</h3>
             <p>已完成</p>
@@ -1277,25 +1277,67 @@ def dashboard_page():
 
     with col1:
         st.subheader("📊 不良品等級分布")
-        level_counts = all_defects['defect_level'].value_counts()
-        fig_pie = px.pie(
-            values=level_counts.values,
-            names=level_counts.index,
-            color_discrete_sequence=['#ef4444', '#f59e0b', '#10b981']
-        )
-        fig_pie.update_layout(height=300)
-        st.plotly_chart(fig_pie, use_container_width=True)
+        # 檢查 defect_level 列是否存在且有有效數據
+        if 'defect_level' in all_defects.columns:
+            # 過濾掉空值和None值
+            level_data = all_defects['defect_level'].dropna()
+            level_data = level_data[level_data != '']
+            
+            if not level_data.empty:
+                level_counts = level_data.value_counts()
+                if len(level_counts) > 0:
+                    # 使用 DataFrame 來確保數據格式正確，並確保所有數據都是可序列化的
+                    chart_data = pd.DataFrame({
+                        'level': [str(x) for x in level_counts.index.tolist()],
+                        'count': [int(x) for x in level_counts.values.tolist()]
+                    })
+                    
+                    fig_pie = px.pie(
+                        chart_data,
+                        values='count',
+                        names='level',
+                        color_discrete_sequence=['#ef4444', '#f59e0b', '#10b981']
+                    )
+                    fig_pie.update_layout(height=300)
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                else:
+                    st.info("📊 暫無不良品等級資料")
+            else:
+                st.info("📊 暫無不良品等級資料")
+        else:
+            st.info("📊 暫無不良品等級資料")
 
     with col2:
         st.subheader("📈 部門處理狀況")
-        dept_counts = all_defects['responsible_dept'].value_counts()
-        fig_bar = px.bar(
-            x=dept_counts.index,
-            y=dept_counts.values,
-            color_discrete_sequence=['#2563eb']
-        )
-        fig_bar.update_layout(height=300, xaxis_title="部門", yaxis_title="不良品數量")
-        st.plotly_chart(fig_bar, use_container_width=True)
+        # 檢查 responsible_dept 列是否存在且有有效數據
+        if 'responsible_dept' in all_defects.columns:
+            # 過濾掉空值和None值
+            dept_data = all_defects['responsible_dept'].dropna()
+            dept_data = dept_data[dept_data != '']
+            
+            if not dept_data.empty:
+                dept_counts = dept_data.value_counts()
+                if len(dept_counts) > 0:
+                    # 使用 DataFrame 來確保數據格式正確，並確保所有數據都是可序列化的
+                    chart_data = pd.DataFrame({
+                        'department': [str(x) for x in dept_counts.index.tolist()],
+                        'count': [int(x) for x in dept_counts.values.tolist()]
+                    })
+                    
+                    fig_bar = px.bar(
+                        chart_data,
+                        x='department',
+                        y='count',
+                        color_discrete_sequence=['#2563eb']
+                    )
+                    fig_bar.update_layout(height=300, xaxis_title="部門", yaxis_title="不良品數量")
+                    st.plotly_chart(fig_bar, use_container_width=True)
+                else:
+                    st.info("📊 暫無部門責任資料")
+            else:
+                st.info("📊 暫無部門責任資料")
+        else:
+            st.info("📊 暫無部門責任資料")
 
 
 
@@ -1352,7 +1394,7 @@ def defect_registration_page():
             secondary_dept = "品保部"
             flow_desc = "工程簽核後轉拋至品保"
 
-        st.markdown("""
+        st.markdown(f"""
         <div class="dept-info">
             🎯 主要責任：{primary_dept}<br>
             🔄 次要責任：{secondary_dept}<br>
@@ -1387,7 +1429,7 @@ def defect_registration_page():
             next_package = get_next_package_number(work_order_preview)
             work_order_stats = get_work_order_stats(work_order_preview)
 
-            st.markdown("""
+            st.markdown(f"""
             <div class="simple-info">
                 📦 預計包數：第 {next_package} 包
                 <br>💡 提交後將成為第 {next_package} 包
@@ -1429,185 +1471,11 @@ def defect_registration_page():
             product_name_preview = st.text_input("產品名稱 *", placeholder="請輸入產品名稱", key="product_name_preview")
 
     with col2_product:
-        # 檢查是否為11U885R00300或11U885L00300產品（或包含關鍵字的產品）
+        # 移除零件選擇功能，直接設定為空值
         component_preview = ""
         supplier_preview = ""
 
-        if product_name_preview and ("11U885R00300" in product_name_preview.upper() or
-                                   "11U885L00300" in product_name_preview.upper() or
-                                   any(keyword in product_name_preview.upper() for keyword in ['SHAFT', 'MOUNT', 'BUSHING', 'CLIP'])):
-            st.markdown("**🔧 零件選擇**")
-
-            # 定義零件選項（基於圖片中的資訊）
-            component_options = ["請選擇零件", "Shaft", "Mount", "Bushing", "Clip"]
-            component_preview = st.selectbox(
-                "零件類型 *",
-                component_options,
-                key="component_preview"
-            )
-
-            if component_preview == "請選擇零件":
-                component_preview = ""
-        elif product_name_preview and product_name_preview != "請選擇產品":
-            # 其他產品也可以選擇零件
-            with st.expander("🔧 零件資訊 (選填)", expanded=False):
-                component_preview = st.text_input("零件名稱", placeholder="如有零件資訊請填寫", key="general_component_preview")
-
-    # 四個零件類型的詳細選擇區域
-    if product_name_preview and ("11U885R00300" in product_name_preview.upper() or
-                               "11U885L00300" in product_name_preview.upper() or
-                               any(keyword in product_name_preview.upper() for keyword in ['SHAFT', 'MOUNT', 'BUSHING', 'CLIP'])):
-        st.write("---")
-        st.write("**🔧 四個零件類型詳細選擇**")
-
-        # 根據圖片定義零件-供應商對應關係
-        component_supplier_mapping = {
-            "Shaft": ["製造三部", "巨昇"],
-            "Mount": ["製造二部+製造三部", "多元"],
-            "Bushing": ["製造二部+製造三部"],
-            "Clip": ["富威達", "紳暉", "銘鈺"]
-        }
-
-        # 創建四個零件的選擇區域
-        col1_comp, col2_comp = st.columns(2)
-
-        with col1_comp:
-            st.markdown("**🔧 Shaft 軸**")
-            shaft_enabled = st.checkbox("選擇 Shaft", key="shaft_enabled")
-            if shaft_enabled:
-                shaft_supplier = st.selectbox(
-                    "Shaft 供應商",
-                    ["請選擇"] + component_supplier_mapping["Shaft"] + ["其他"],
-                    key="shaft_supplier"
-                )
-                if shaft_supplier == "其他":
-                    shaft_supplier = st.text_input("Shaft 其他供應商", key="shaft_custom_supplier")
-
-            st.markdown("**🔧 Mount 座**")
-            mount_enabled = st.checkbox("選擇 Mount", key="mount_enabled")
-            if mount_enabled:
-                mount_supplier = st.selectbox(
-                    "Mount 供應商",
-                    ["請選擇"] + component_supplier_mapping["Mount"] + ["其他"],
-                    key="mount_supplier"
-                )
-                if mount_supplier == "其他":
-                    mount_supplier = st.text_input("Mount 其他供應商", key="mount_custom_supplier")
-
-        with col2_comp:
-            st.markdown("**🔧 Bushing 軸套**")
-            bushing_enabled = st.checkbox("選擇 Bushing", key="bushing_enabled")
-            if bushing_enabled:
-                bushing_supplier = st.selectbox(
-                    "Bushing 供應商",
-                    ["請選擇"] + component_supplier_mapping["Bushing"] + ["其他"],
-                    key="bushing_supplier"
-                )
-                if bushing_supplier == "其他":
-                    bushing_supplier = st.text_input("Bushing 其他供應商", key="bushing_custom_supplier")
-
-            st.markdown("**🔧 Clip 夾**")
-            clip_enabled = st.checkbox("選擇 Clip", key="clip_enabled")
-            if clip_enabled:
-                clip_supplier = st.selectbox(
-                    "Clip 供應商",
-                    ["請選擇"] + component_supplier_mapping["Clip"] + ["其他"],
-                    key="clip_supplier"
-                )
-                if clip_supplier == "其他":
-                    clip_supplier = st.text_input("Clip 其他供應商", key="clip_custom_supplier")
-
-        # 收集選擇的零件和供應商
-        selected_components = []
-        selected_suppliers = []
-
-        if 'shaft_enabled' in st.session_state and st.session_state.shaft_enabled:
-            shaft_sup = st.session_state.get('shaft_supplier', '請選擇')
-            if shaft_sup != '請選擇':
-                if shaft_sup == '其他' and 'shaft_custom_supplier' in st.session_state:
-                    shaft_sup = st.session_state.shaft_custom_supplier
-                if shaft_sup and shaft_sup != '其他':
-                    selected_components.append("Shaft")
-                    selected_suppliers.append(f"Shaft:{shaft_sup}")
-
-        if 'mount_enabled' in st.session_state and st.session_state.mount_enabled:
-            mount_sup = st.session_state.get('mount_supplier', '請選擇')
-            if mount_sup != '請選擇':
-                if mount_sup == '其他' and 'mount_custom_supplier' in st.session_state:
-                    mount_sup = st.session_state.mount_custom_supplier
-                if mount_sup and mount_sup != '其他':
-                    selected_components.append("Mount")
-                    selected_suppliers.append(f"Mount:{mount_sup}")
-
-        if 'bushing_enabled' in st.session_state and st.session_state.bushing_enabled:
-            bushing_sup = st.session_state.get('bushing_supplier', '請選擇')
-            if bushing_sup != '請選擇':
-                if bushing_sup == '其他' and 'bushing_custom_supplier' in st.session_state:
-                    bushing_sup = st.session_state.bushing_custom_supplier
-                if bushing_sup and bushing_sup != '其他':
-                    selected_components.append("Bushing")
-                    selected_suppliers.append(f"Bushing:{bushing_sup}")
-
-        if 'clip_enabled' in st.session_state and st.session_state.clip_enabled:
-            clip_sup = st.session_state.get('clip_supplier', '請選擇')
-            if clip_sup != '請選擇':
-                if clip_sup == '其他' and 'clip_custom_supplier' in st.session_state:
-                    clip_sup = st.session_state.clip_custom_supplier
-                if clip_sup and clip_sup != '其他':
-                    selected_components.append("Clip")
-                    selected_suppliers.append(f"Clip:{clip_sup}")
-
-        # 顯示選擇結果
-        if selected_components:
-            st.markdown("""
-            <div class="component-info">
-                🔧 選定零件：{', '.join(selected_components)}<br>
-                🏭 對應供應商：<br>
-                {'<br>'.join([f'   • {sup}' for sup in selected_suppliers])}
-            </div>
-            """, unsafe_allow_html=True)
-
-            # 為了兼容現有邏輯，使用第一個選擇的零件和供應商
-            component_preview = selected_components[0] if selected_components else ""
-            supplier_preview = selected_suppliers[0].split(':')[1] if selected_suppliers else ""
-
-    # 原有的供應商選擇（基於單一零件選擇）
-    elif component_preview and component_preview != "請選擇零件":
-        st.write("**🏭 供應商選擇**")
-
-        # 根據圖片定義零件-供應商對應關係
-        component_supplier_mapping = {
-            "Shaft": ["請選擇供應商", "製造三部", "巨昇", "其他"],
-            "Mount": ["請選擇供應商", "製造二部+製造三部", "多元", "其他"],
-            "Bushing": ["請選擇供應商", "製造二部+製造三部", "其他"],
-            "Clip": ["請選擇供應商", "富威達", "紳暉", "銘鈺", "其他"]
-        }
-
-        if component_preview in component_supplier_mapping:
-            supplier_options = component_supplier_mapping[component_preview]
-            supplier_preview = st.selectbox(
-                f"供應商 ({component_preview})",
-                supplier_options,
-                key=f"supplier_preview_{component_preview}"
-            )
-
-            # 如果選擇其他，提供輸入框
-            if supplier_preview == "其他":
-                supplier_preview = st.text_input("請輸入供應商名稱", placeholder="請輸入供應商名稱", key="custom_supplier_name")
-            elif supplier_preview == "請選擇供應商":
-                supplier_preview = ""
-        else:
-            # 一般零件的供應商輸入
-            supplier_preview = st.text_input("供應商名稱", placeholder="請輸入供應商名稱", key="general_supplier_input")
-
-        # 顯示選擇結果
-        if component_preview and supplier_preview:
-            st.markdown("""
-            <div class="component-info">
-                🔧 選定零件：{component_preview}<br>
-                🏭 選定供應商：{supplier_preview}
-            </div>
-            """, unsafe_allow_html=True)
+    # 移除所有零件選擇相關功能
 
     st.divider()
 
@@ -1624,10 +1492,7 @@ def defect_registration_page():
             # 顯示確認資訊
             if product_name:
                 st.info(f"📦 產品：{product_name}")
-                if component:
-                    st.info(f"🔧 零件：{component}")
-                if supplier:
-                    st.info(f"🏭 供應商：{supplier}")
+                # 移除零件和供應商顯示
             else:
                 st.warning("⚠️ 請先選擇產品名稱")
 
@@ -1726,64 +1591,9 @@ def defect_registration_page():
                 # 確保使用最新的包數
                 final_package_number = get_next_package_number(work_order) if work_order else 1
 
-                # 收集所有零件和供應商資訊
-                all_components = []
-                all_suppliers = []
-
-                # 檢查四個零件類型的選擇
-                if product_name and ("11U885R00300" in product_name.upper() or
-                                   "11U885L00300" in product_name.upper() or
-                                   any(keyword in product_name.upper() for keyword in ['SHAFT', 'MOUNT', 'BUSHING', 'CLIP'])):
-
-                    # 收集Shaft資訊
-                    if st.session_state.get('shaft_enabled', False):
-                        shaft_sup = st.session_state.get('shaft_supplier', '請選擇')
-                        if shaft_sup != '請選擇':
-                            if shaft_sup == '其他' and st.session_state.get('shaft_custom_supplier'):
-                                shaft_sup = st.session_state.shaft_custom_supplier
-                            if shaft_sup and shaft_sup != '其他':
-                                all_components.append("Shaft")
-                                all_suppliers.append(f"Shaft:{shaft_sup}")
-
-                    # 收集Mount資訊
-                    if st.session_state.get('mount_enabled', False):
-                        mount_sup = st.session_state.get('mount_supplier', '請選擇')
-                        if mount_sup != '請選擇':
-                            if mount_sup == '其他' and st.session_state.get('mount_custom_supplier'):
-                                mount_sup = st.session_state.mount_custom_supplier
-                            if mount_sup and mount_sup != '其他':
-                                all_components.append("Mount")
-                                all_suppliers.append(f"Mount:{mount_sup}")
-
-                    # 收集Bushing資訊
-                    if st.session_state.get('bushing_enabled', False):
-                        bushing_sup = st.session_state.get('bushing_supplier', '請選擇')
-                        if bushing_sup != '請選擇':
-                            if bushing_sup == '其他' and st.session_state.get('bushing_custom_supplier'):
-                                bushing_sup = st.session_state.bushing_custom_supplier
-                            if bushing_sup and bushing_sup != '其他':
-                                all_components.append("Bushing")
-                                all_suppliers.append(f"Bushing:{bushing_sup}")
-
-                    # 收集Clip資訊
-                    if st.session_state.get('clip_enabled', False):
-                        clip_sup = st.session_state.get('clip_supplier', '請選擇')
-                        if clip_sup != '請選擇':
-                            if clip_sup == '其他' and st.session_state.get('clip_custom_supplier'):
-                                clip_sup = st.session_state.clip_custom_supplier
-                            if clip_sup and clip_sup != '其他':
-                                all_components.append("Clip")
-                                all_suppliers.append(f"Clip:{clip_sup}")
-
-                # 如果沒有選擇多個零件，使用原有的單一零件邏輯
-                if not all_components and component:
-                    all_components.append(component)
-                    if supplier:
-                        all_suppliers.append(f"{component}:{supplier}")
-
-                # 將多個零件和供應商資訊合併成字符串
-                final_component = "; ".join(all_components) if all_components else ""
-                final_supplier = "; ".join(all_suppliers) if all_suppliers else ""
+                # 移除零件選擇功能，直接使用空值
+                final_component = ""
+                final_supplier = ""
 
                 defect_data = {
                     'work_order': work_order,
@@ -1809,21 +1619,7 @@ def defect_registration_page():
                 st.success(f"✅ 登錄成功！編號：{defect_id}")
                 st.info(f"📦 包數：第{final_package_number}包 | 🎯 主要責任：{primary_dept} - {primary_person}")
 
-                # 顯示所有零件和供應商資訊
-                if final_component:
-                    if ";" in final_component:
-                        st.info(f"🔧 零件：{final_component}")
-                        # 解析供應商資訊並以列表形式顯示
-                        if final_supplier:
-                            supplier_list = final_supplier.split("; ")
-                            supplier_display = "\n".join([f"   • {sup}" for sup in supplier_list])
-                            st.info(f"🏭 供應商：\n{supplier_display}")
-                    else:
-                        st.info(f"🔧 零件：{final_component}")
-                        if final_supplier:
-                            # 提取供應商名稱（去掉零件前綴）
-                            supplier_name = final_supplier.split(":")[-1] if ":" in final_supplier else final_supplier
-                            st.info(f"🏭 供應商：{supplier_name}")
+                # 移除零件和供應商資訊顯示
 
                 if secondary_person:
                     st.info(f"🔄 次要責任：{secondary_dept} - {secondary_person}")
@@ -1896,23 +1692,16 @@ def tracking_page():
                     else:
                         st.write(f"**零件:** {component_str}")
 
-                # 顯示供應商資訊（支援多個供應商）
-                if defect.get('supplier') and pd.notna(defect['supplier']) and defect['supplier'].strip():
-                    supplier_str = defect['supplier']
-                    if ";" in supplier_str:
-                        suppliers = supplier_str.split("; ")
-                        st.write("**供應商:**")
-                        for supplier in suppliers:
-                            st.write(f"   • {supplier}")
-                    else:
-                        # 處理單一供應商（可能包含零件前綴）
-                        supplier_display = supplier_str.split(":")[-1] if ":" in supplier_str else supplier_str
-                        st.write(f"**供應商:** {supplier_display}")
+
 
                 st.write(f"**問題描述:** {defect['description']}")
 
                 if defect['resolution']:
                     st.write(f"**處理結果:** {defect['resolution']}")
+                
+                # 顯示零件不良資訊
+                if defect.get('defective_component') and pd.notna(defect['defective_component']) and defect['defective_component'].strip():
+                    st.write(f"**🔧 不良零件:** {defect['defective_component']}")
 
             with col2:
                 st.write(f"**建立時間:** {defect['created_time']}")
@@ -2057,9 +1846,37 @@ def tracking_page():
                             else:
                                 st.success(f"✅ 全部 {ok_quantity} pcs 判定為OK品")
 
-                        # 如果選擇了具體的處理結果，可以添加備註
+                        # 如果選擇了具體的處理結果，顯示零件不良選擇和備註
+                        defective_component = ""
                         resolution_note = ""
                         if resolution != "請選擇處理結果":
+                            # 零件不良選擇
+                            st.write("**🔧 零件不良選擇**")
+                            defective_component = st.selectbox(
+                                "請選擇不良零件",
+                                ["請選擇不良零件", "Shaft", "Mount", "Bushing", "Clip", "多個零件", "其他"],
+                                key=f"defective_comp_track_{defect['id']}"
+                            )
+                            
+                            # 如果選擇多個零件，提供多選功能
+                            if defective_component == "多個零件":
+                                multiple_components = st.multiselect(
+                                    "選擇多個不良零件",
+                                    ["Shaft", "Mount", "Bushing", "Clip"],
+                                    key=f"multi_comp_track_{defect['id']}"
+                                )
+                                if multiple_components:
+                                    defective_component = "; ".join(multiple_components)
+                            
+                            # 如果選擇其他，提供文字輸入
+                            elif defective_component == "其他":
+                                other_component = st.text_input(
+                                    "請輸入其他零件名稱",
+                                    key=f"other_comp_track_{defect['id']}"
+                                )
+                                if other_component:
+                                    defective_component = f"其他: {other_component}"
+                            
                             resolution_note = st.text_area(
                                 "處理備註（選填）",
                                 placeholder="可填寫具體處理說明...",
@@ -2068,6 +1885,21 @@ def tracking_page():
 
                         if st.button("🔄 提交簽核", key=f"complete_track_{defect['id']}", use_container_width=True):
                             if resolution != "請選擇處理結果":
+                                # 檢查零件不良選擇
+                                if defective_component == "請選擇不良零件":
+                                    st.error("請選擇不良零件")
+                                    return
+                                
+                                # 檢查多個零件選擇
+                                if defective_component == "多個零件":
+                                    st.error("請選擇具體的不良零件")
+                                    return
+                                
+                                # 檢查其他零件輸入
+                                if defective_component == "其他":
+                                    st.error("請輸入其他零件名稱")
+                                    return
+                                
                                 # 檢查NG品處理方式
                                 if resolution == "TRA11 判定後為OK品":
                                     remaining_defects = int(defect['quantity']) - ok_quantity
@@ -2091,7 +1923,7 @@ def tracking_page():
                                     final_resolution += f" - {resolution_note}"
 
                                 # 更新為待次要單位簽核狀態
-                                conn = get_db_connection()
+                                conn = sqlite3.connect('defect_management.db')
                                 cursor = conn.cursor()
 
                                 # 確保secondary_dept不為空，如果為空則使用默認值
@@ -2100,16 +1932,17 @@ def tracking_page():
                                 cursor.execute('''
                                     UPDATE defects
                                     SET status = '處理中', resolution = ?, approval_status = '待次要單位簽核',
-                                        responsible_dept = ?, assigned_person = ?, updated_time = CURRENT_TIMESTAMP
+                                        responsible_dept = ?, assigned_person = ?, defective_component = ?, updated_time = CURRENT_TIMESTAMP
                                     WHERE id = ?
-                                ''', (final_resolution, target_dept, secondary_person, defect['id']))
+                                ''', (final_resolution, target_dept, secondary_person, defective_component, defect['id']))
 
                                 # 添加處理記錄
+                                log_comment = f"{final_resolution} - 不良零件: {defective_component}"
                                 cursor.execute('''
                                     INSERT INTO processing_logs (defect_id, action, department, operator, comment)
                                     VALUES (?, ?, ?, ?, ?)
                                 ''', (defect['id'], f'主要單位({primary_dept})處理完成，提交簽核', primary_dept,
-                                     st.session_state.user['name'], final_resolution))
+                                     st.session_state.user['name'], log_comment))
 
                                 conn.commit()
                                 conn.close()
@@ -2175,7 +2008,7 @@ def tracking_page():
                             # 檢查是否需要第三責任人簽核
                             third_info = get_third_responsible_info(defect['resolution']) if defect['resolution'] else None
 
-                            conn = get_db_connection()
+                            conn = sqlite3.connect('defect_management.db')
                             cursor = conn.cursor()
 
                             if third_info:
@@ -2239,7 +2072,7 @@ def tracking_page():
                         if st.button("❌ 退回", key=f"approve_ng_{defect['id']}", use_container_width=True):
                             if reject_reason:
                                 # 退回給主要單位重新處理
-                                conn = get_db_connection()
+                                conn = sqlite3.connect('defect_management.db')
                                 cursor = conn.cursor()
 
                                 # 確保primary_dept不為空，如果為空則使用默認值
@@ -2275,6 +2108,16 @@ def tracking_page():
                     st.write(f"**🔍 {third_dept}簽核**")
                     st.info(f"📋 {secondary_dept}已完成簽核，請{third_person}進行最終簽核確認")
 
+                    # 權限檢查：只有對應部門的人員或管理員才能進行最終簽核
+                    user_dept = st.session_state.user.get('department', '')
+                    user_role = st.session_state.user.get('role', '')
+                    can_approve = (user_dept == third_dept or user_role == '管理員')
+
+                    if not can_approve:
+                        st.warning(f"⚠️ 您的部門為「{user_dept}」，只有「{third_dept}」的人員才能進行此最終簽核")
+                        st.info("💡 如需權限調整，請聯繫系統管理員")
+                        return
+
                     # 顯示處理結果
                     if defect['resolution']:
                         st.write(f"**處理結果：** {defect['resolution']}")
@@ -2291,7 +2134,7 @@ def tracking_page():
 
                         if st.button("✅ 最終通過", key=f"third_approve_ok_{defect['id']}", use_container_width=True):
                             # 更新為已完成狀態
-                            conn = get_db_connection()
+                            conn = sqlite3.connect('defect_management.db')
                             cursor = conn.cursor()
                             cursor.execute('''
                                 UPDATE defects
@@ -2328,7 +2171,7 @@ def tracking_page():
                         if st.button("❌ 退回重處理", key=f"third_approve_ng_{defect['id']}", use_container_width=True):
                             if third_reject_reason:
                                 # 退回給主要單位重新處理
-                                conn = get_db_connection()
+                                conn = sqlite3.connect('defect_management.db')
                                 cursor = conn.cursor()
 
                                 # 確保primary_dept不為空，如果為空則使用默認值
@@ -2628,104 +2471,171 @@ def analytics_page():
 
     st.divider()
 
-    # 供應商分析
-    st.subheader("🏭 供應商分析")
+    # 零件不良分析
+    st.subheader("🔧 零件不良分析")
 
-    # 檢查是否有供應商資料
-    supplier_data = analysis_data[analysis_data['supplier'].notna() & (analysis_data['supplier'] != '')]
+    # 檢查是否有零件不良資料
+    # 先檢查 defective_component 欄位是否存在
+    if 'defective_component' in analysis_data.columns:
+        component_data = analysis_data[analysis_data['defective_component'].notna() & (analysis_data['defective_component'] != '')]
+    else:
+        component_data = pd.DataFrame()  # 建立空的 DataFrame
 
-    if not supplier_data.empty:
+    if not component_data.empty:
         col1, col2 = st.columns(2)
 
         with col1:
-            st.write("**📊 供應商不良品統計**")
+            st.write("**📊 零件不良統計**")
 
-            supplier_stats = supplier_data.groupby('supplier')['quantity'].sum().sort_values(ascending=False)
+            # 處理複合零件（用分號分隔的）
+            component_expanded = []
+            for _, row in component_data.iterrows():
+                components = str(row['defective_component']).split(';')
+                for comp in components:
+                    comp = comp.strip()
+                    if comp:
+                        component_expanded.append({
+                            'component': comp,
+                            'quantity': row['quantity'],
+                            'defect_type': row['defect_type'],
+                            'product_name': row['product_name']
+                        })
 
-            fig_supplier = px.bar(
-                x=supplier_stats.index,
-                y=supplier_stats.values,
-                color=supplier_stats.values,
-                color_continuous_scale=['#60a5fa', '#2563eb', '#1e40af'],
-                text=supplier_stats.values
-            )
+            if component_expanded:
+                comp_df = pd.DataFrame(component_expanded)
+                comp_stats = comp_df.groupby('component')['quantity'].sum().sort_values(ascending=False)
 
-            fig_supplier.update_traces(
-                texttemplate="%{text} pcs",
-                textposition='outside',
-                hovertemplate='<b>供應商: %{x}</b><br>不良數量: %{y} pcs<extra></extra>'
-            )
+                fig_component = px.bar(
+                    x=comp_stats.index,
+                    y=comp_stats.values,
+                    color=comp_stats.values,
+                    color_continuous_scale=['#60a5fa', '#2563eb', '#1e40af'],
+                    text=comp_stats.values
+                )
 
-            fig_supplier.update_layout(
-                height=350,
-                xaxis_title="供應商",
-                yaxis_title="不良數量 (pcs)",
-                showlegend=False,
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(size=11),
-                xaxis=dict(tickangle=45)
-            )
+                fig_component.update_traces(
+                    texttemplate="%{text} pcs",
+                    textposition='outside',
+                    hovertemplate='<b>零件: %{x}</b><br>不良數量: %{y} pcs<extra></extra>'
+                )
 
-            st.plotly_chart(fig_supplier, use_container_width=True)
+                fig_component.update_layout(
+                    height=350,
+                    xaxis_title="零件類型",
+                    yaxis_title="不良數量 (pcs)",
+                    showlegend=False,
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font=dict(size=11),
+                    xaxis=dict(tickangle=45)
+                )
+
+                st.plotly_chart(fig_component, use_container_width=True)
 
         with col2:
-            st.write("**🔍 供應商詳細分析**")
+            st.write("**🔍 零件不良詳細分析**")
 
-            # 按供應商和產品類型分組
-            supplier_product_stats = supplier_data.groupby(['supplier', 'product_name'])['quantity'].sum().reset_index()
+            # 零件佔比表
+            if component_expanded:
+                comp_total = comp_stats.sum()
+                comp_percent_df = pd.DataFrame({
+                    '零件類型': comp_stats.index,
+                    '不良數量(pcs)': comp_stats.values,
+                    '佔比(%)': (comp_stats.values / comp_total * 100).round(2)
+                })
+                st.dataframe(comp_percent_df, use_container_width=True)
 
-            # 創建透視表
-            pivot_table = supplier_product_stats.pivot_table(
-                index='supplier',
-                columns='product_name',
-                values='quantity',
-                fill_value=0
+                # 零件 vs 不良類型交叉分析
+                st.write("**🔄 零件 vs 不良類型交叉分析**")
+                cross_analysis = comp_df.groupby(['component', 'defect_type'])['quantity'].sum().reset_index()
+                
+                if not cross_analysis.empty:
+                    pivot_comp = cross_analysis.pivot_table(
+                        index='component',
+                        columns='defect_type',
+                        values='quantity',
+                        fill_value=0
+                    )
+                    st.dataframe(pivot_comp, use_container_width=True)
+
+        # 零件趨勢分析
+        st.write("**📈 零件不良趨勢分析**")
+        
+        if component_expanded:
+            # 按日期統計零件不良
+            comp_df_with_date = pd.merge(
+                pd.DataFrame(component_expanded),
+                component_data[['created_time']].reset_index(),
+                left_index=True,
+                right_index=True,
+                how='left'
             )
+            
+            comp_df_with_date['date'] = pd.to_datetime(comp_df_with_date['created_time']).dt.date
+            daily_comp_stats = comp_df_with_date.groupby(['date', 'component'])['quantity'].sum().reset_index()
+            
+            if not daily_comp_stats.empty:
+                fig_trend = px.line(
+                    daily_comp_stats,
+                    x='date',
+                    y='quantity',
+                    color='component',
+                    title="零件不良數量趨勢",
+                    markers=True
+                )
+                
+                fig_trend.update_layout(
+                    height=300,
+                    xaxis_title="日期",
+                    yaxis_title="不良數量 (pcs)",
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font=dict(size=11)
+                )
+                
+                st.plotly_chart(fig_trend, use_container_width=True)
+            else:
+                st.info("📊 暫無足夠資料顯示趨勢圖")
 
-            if not pivot_table.empty:
-                st.write("*供應商 vs 產品類型 不良數量統計*")
-                st.dataframe(pivot_table, use_container_width=True)
-
-            # 供應商佔比表
-            st.write("*供應商不良品佔比*")
-            supplier_total = supplier_stats.sum()
-            supplier_percent_df = pd.DataFrame({
-                '供應商': supplier_stats.index,
-                '不良數量(pcs)': supplier_stats.values,
-                '佔比(%)': (supplier_stats.values / supplier_total * 100).round(2)
-            })
-            st.dataframe(supplier_percent_df, use_container_width=True)
-
-        # 供應商產品類型分析
-        st.write("**📋 供應商產品類型分析**")
-
-        # 按產品類型分組供應商資料
-        product_types = ['SHAFT', 'CLIP', 'MOUNT', 'BUSHING']
-        supplier_by_type = {}
-
-        for ptype in product_types:
-            type_data = supplier_data[supplier_data['product_name'].str.upper().str.contains(ptype, na=False)]
-            if not type_data.empty:
-                supplier_by_type[ptype] = type_data.groupby('supplier')['quantity'].sum().sort_values(ascending=False)
-
-        if supplier_by_type:
-            cols = st.columns(len(supplier_by_type))
-
-            for i, (ptype, stats) in enumerate(supplier_by_type.items()):
-                with cols[i]:
-                    st.write(f"**{ptype}**")
-                    for supplier, qty in stats.items():
-                        st.write(f"• {supplier}: {qty} pcs")
-        else:
-            st.info("📊 暫無特定產品類型的供應商資料")
+        # 零件不良改善建議
+        st.write("**💡 零件不良改善建議**")
+        
+        if component_expanded:
+            # 找出最常見的不良零件
+            top_component = comp_stats.index[0]
+            top_quantity = comp_stats.iloc[0]
+            top_percentage = (top_quantity / comp_total * 100)
+            
+            suggestions = []
+            
+            if top_percentage > 50:
+                suggestions.append(f"🚨 **{top_component}** 佔零件不良的 {top_percentage:.1f}%，建議優先改善此零件的品質控制")
+            
+            if 'Shaft' in comp_stats.index and comp_stats['Shaft'] > comp_total * 0.3:
+                suggestions.append("⚙️ **Shaft** 不良率較高，建議檢查軸類加工精度和材料品質")
+            
+            if 'Mount' in comp_stats.index and comp_stats['Mount'] > comp_total * 0.3:
+                suggestions.append("🔧 **Mount** 不良率較高，建議檢查座架類零件的組裝工藝")
+            
+            if 'Bushing' in comp_stats.index and comp_stats['Bushing'] > comp_total * 0.3:
+                suggestions.append("🔩 **Bushing** 不良率較高，建議檢查軸套類零件的配合精度")
+            
+            if 'Clip' in comp_stats.index and comp_stats['Clip'] > comp_total * 0.3:
+                suggestions.append("📎 **Clip** 不良率較高，建議檢查夾具類零件的彈性和強度")
+            
+            if not suggestions:
+                suggestions.append("✅ 零件不良分佈相對均勻，建議持續監控各零件品質狀況")
+            
+            for suggestion in suggestions:
+                st.markdown(f"• {suggestion}")
+        
     else:
-        st.info("📊 暫無供應商資料，請在登錄不良品時填寫供應商資訊")
-        st.write("💡 **提示：** 系統支援以下產品類型的供應商選擇：")
-        st.write("• SHAFT - 軸類產品")
-        st.write("• CLIP - 夾具類產品")
-        st.write("• MOUNT - 座架類產品")
-        st.write("• BUSHING - 軸套類產品")
+        st.info("📊 暫無零件不良資料，請在處理追蹤時選擇不良零件")
+        st.write("💡 **使用說明：**")
+        st.write("1. 在「🔍 處理追蹤」頁面處理不良品時")
+        st.write("2. 選擇處理結果後會出現「零件不良選擇」")
+        st.write("3. 選擇對應的不良零件（Shaft/Mount/Bushing/Clip）")
+        st.write("4. 提交後即可在此頁面看到零件不良統計")
 
     st.divider()
 
@@ -4004,7 +3914,7 @@ def analytics_page():
         with analysis_container:
             # 總體情況分析
             st.write("**📊 總體情況分析**")
-            summary_text = """
+            summary_text = f"""
             根據目前的數據分析，系統共有 **{total_orders}** 筆不良品記錄，涉及 **{total_packages:,}** 個包號，
             不良品總數為 **{total_defects_count:,}** 個，整體處理完成率為 **{avg_progress:.1f}%**。
             已完成處理的記錄數量為 **{completed_orders}** 筆。
@@ -4041,6 +3951,40 @@ def analytics_page():
                     findings.append(f"⏰ 平均處理時間為 **{processing_days:.1f}** 天，建議加快處理速度")
                 else:
                     findings.append(f"⏰ 平均處理時間為 **{processing_days:.1f}** 天，處理效率良好")
+
+            # 零件不良分析
+            # 先檢查 defective_component 欄位是否存在
+            if 'defective_component' in all_defects.columns:
+                component_data = all_defects[all_defects['defective_component'].notna() & (all_defects['defective_component'] != '')]
+            else:
+                component_data = pd.DataFrame()  # 建立空的 DataFrame
+            if not component_data.empty:
+                # 處理複合零件
+                component_expanded = []
+                for _, row in component_data.iterrows():
+                    components = str(row['defective_component']).split(';')
+                    for comp in components:
+                        comp = comp.strip()
+                        if comp:
+                            component_expanded.append({'component': comp, 'quantity': row['quantity']})
+
+                if component_expanded:
+                    comp_df = pd.DataFrame(component_expanded)
+                    comp_stats = comp_df.groupby('component')['quantity'].sum().sort_values(ascending=False)
+                    
+                    if not comp_stats.empty:
+                        top_component = comp_stats.index[0]
+                        top_quantity = comp_stats.iloc[0]
+                        total_comp_quantity = comp_stats.sum()
+                        top_percentage = (top_quantity / total_comp_quantity * 100)
+                        
+                        findings.append(f"🔧 **{top_component}** 是最常見的不良零件，佔零件不良的 **{top_percentage:.1f}%** ({top_quantity} pcs)")
+                        
+                        # 如果有多個零件類型，顯示前三名
+                        if len(comp_stats) > 1:
+                            top_3 = comp_stats.head(3)
+                            top_3_names = ", ".join(top_3.index)
+                            findings.append(f"🔧 主要不良零件為：**{top_3_names}**，合計佔 **{(top_3.sum()/total_comp_quantity*100):.1f}%**")
 
             for finding in findings:
                 st.markdown(f"• {finding}")
@@ -4096,6 +4040,73 @@ def analytics_page():
                     "建議": "平均處理時間較長，建議簡化作業流程，設定處理時限，並建立逾期預警機制",
                     "優先級": "中"
                 })
+
+            # 零件不良建議
+            # 確保 component_data 變數已定義
+            if 'defective_component' in all_defects.columns:
+                temp_component_data = all_defects[all_defects['defective_component'].notna() & (all_defects['defective_component'] != '')]
+                
+                # 處理複合零件
+                temp_component_expanded = []
+                for _, row in temp_component_data.iterrows():
+                    components = str(row['defective_component']).split(';')
+                    for comp in components:
+                        comp = comp.strip()
+                        if comp:
+                            temp_component_expanded.append({'component': comp, 'quantity': row['quantity']})
+                
+                if temp_component_expanded:
+                    comp_df = pd.DataFrame(temp_component_expanded)
+                    comp_stats = comp_df.groupby('component')['quantity'].sum().sort_values(ascending=False)
+            else:
+                temp_component_expanded = []
+                comp_stats = pd.Series(dtype='int64')
+            
+            if len(temp_component_expanded) > 0 and not comp_stats.empty:
+                    top_component = comp_stats.index[0]
+                    top_percentage = (comp_stats.iloc[0] / comp_stats.sum() * 100)
+                    
+                    if top_percentage > 50:
+                        suggestions.append({
+                            "類別": "🔧 零件品質",
+                            "建議": f"{top_component}不良率過高（{top_percentage:.1f}%），建議重點檢查此零件的製程和材料品質",
+                            "優先級": "高"
+                        })
+                    elif top_percentage > 30:
+                        suggestions.append({
+                            "類別": "🔧 零件品質",
+                            "建議": f"{top_component}不良率較高（{top_percentage:.1f}%），建議加強此零件的品質控制和檢驗標準",
+                            "優先級": "中"
+                        })
+                    
+                    # 針對特定零件類型的建議
+                    if 'Shaft' in comp_stats.index and comp_stats['Shaft'] > comp_stats.sum() * 0.25:
+                        suggestions.append({
+                            "類別": "⚙️ 軸類品質",
+                            "建議": "軸類零件(Shaft)不良率偏高，建議檢查加工精度、材料硬度和表面處理工藝",
+                            "優先級": "中"
+                        })
+                    
+                    if 'Mount' in comp_stats.index and comp_stats['Mount'] > comp_stats.sum() * 0.25:
+                        suggestions.append({
+                            "類別": "🔧 座架品質",
+                            "建議": "座架類零件(Mount)不良率偏高，建議檢查組裝工藝、配合公差和固定方式",
+                            "優先級": "中"
+                        })
+                    
+                    if 'Bushing' in comp_stats.index and comp_stats['Bushing'] > comp_stats.sum() * 0.25:
+                        suggestions.append({
+                            "類別": "🔩 軸套品質",
+                            "建議": "軸套類零件(Bushing)不良率偏高，建議檢查內外徑配合、材料選擇和潤滑處理",
+                            "優先級": "中"
+                        })
+                    
+                    if 'Clip' in comp_stats.index and comp_stats['Clip'] > comp_stats.sum() * 0.25:
+                        suggestions.append({
+                            "類別": "📎 夾具品質",
+                            "建議": "夾具類零件(Clip)不良率偏高，建議檢查彈性設計、材料強度和安裝方式",
+                            "優先級": "中"
+                        })
 
             # 通用建議
             suggestions.extend([
@@ -4473,7 +4484,7 @@ def settings_page():
             new_name = st.text_input("姓名", key="new_person_name")
 
         with col2:
-            new_dept = st.selectbox("部門", ["工程部", "品保部", "製造部"], key="new_person_dept")
+            new_dept = st.selectbox("部門", ["工程部", "品保部", "製造部", "製造二部", "製造三部", "資材部", "管理部"], key="new_person_dept")
 
         if st.button("➕ 新增人員", key="add_person"):
             if new_name:
