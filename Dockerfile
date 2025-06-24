@@ -38,8 +38,5 @@ EXPOSE 8501
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl --fail http://localhost:8501/_stcore/health || exit 1
 
-# 複製測試應用
-COPY test_app.py .
-
-# 啟動命令 - 使用測試版本
-CMD ["streamlit", "run", "test_app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true", "--server.enableCORS=false", "--server.enableXsrfProtection=false"] 
+# 啟動命令
+CMD ["streamlit", "run", "defect_management_system.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true", "--server.enableCORS=false", "--server.enableXsrfProtection=false"] 
