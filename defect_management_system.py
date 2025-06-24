@@ -321,7 +321,7 @@ def authenticate_user(username: str, password: str) -> Dict:
         }
 
     conn.close()
-    return {}
+    return None
 
 def get_all_users():
     """獲取所有用戶"""
