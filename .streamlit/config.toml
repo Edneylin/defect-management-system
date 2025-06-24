@@ -3,12 +3,21 @@ port = 8501
 address = "0.0.0.0"
 enableCORS = false
 enableXsrfProtection = false
+headless = true
+runOnSave = false
+allowRunOnSave = false
 
 [browser]
 gatherUsageStats = false
+serverAddress = "0.0.0.0"
+serverPort = 8501
 
 [theme]
 primaryColor = "#2563eb"
 backgroundColor = "#ffffff"
 secondaryBackgroundColor = "#f8fafc"
-textColor = "#1e293b" 
+textColor = "#1e293b"
+font = "sans serif"
+
+[logger]
+level = "info" 

@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# 升級pip
+RUN pip install --upgrade pip
+
 # 複製依賴文件
 COPY requirements.txt .
 
@@ -18,19 +21,22 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 複製應用程式文件
 COPY . .
 
-# 創建資料庫目錄
+# 創建必要目錄
 RUN mkdir -p /app/data
+RUN mkdir -p /app/.streamlit
 
 # 設定環境變數
 ENV STREAMLIT_SERVER_PORT=8501
 ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+ENV STREAMLIT_SERVER_HEADLESS=true
+ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
 # 暴露端口
 EXPOSE 8501
 
 # 健康檢查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl --fail http://localhost:8501/_stcore/health || exit 1
 
 # 啟動命令
-CMD ["streamlit", "run", "defect_management_system.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.enableCORS=false"] 
+CMD ["streamlit", "run", "defect_management_system.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true", "--server.enableCORS=false", "--server.enableXsrfProtection=false"] 
