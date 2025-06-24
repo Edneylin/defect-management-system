@@ -324,19 +324,19 @@ def authenticate_user(username: str, password: str) -> Dict:
 
     user = cursor.fetchone()
 
-    if user and verify_password(password, user[2]):
+    if user and verify_password(password, user['password_hash']):
         # 更新最後登入時間
-        cursor.execute('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', (user[0],))
+        cursor.execute('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?', (user['id'],))
         conn.commit()
         conn.close()
 
         return {
-            'id': user[0],
-            'username': user[1],
-            'name': user[3],
-            'department': user[4],
-            'position': user[5],
-            'role': user[6]
+            'id': user['id'],
+            'username': user['username'],
+            'name': user['name'],
+            'department': user['department'],
+            'position': user['position'],
+            'role': user['role']
         }
 
     conn.close()
@@ -550,7 +550,11 @@ def transfer_defect(defect_id, target_dept, transfer_reason, operator=None):
     assigned_person = ''
 
     if defect_info:
-        primary_dept, secondary_dept, primary_person, secondary_person, defect_type = defect_info
+        primary_dept = defect_info['primary_dept']
+        secondary_dept = defect_info['secondary_dept']
+        primary_person = defect_info['primary_person']
+        secondary_person = defect_info['secondary_person']
+        defect_type = defect_info['defect_type']
 
         # 如果轉交到次要責任部門，使用次要負責人
         if target_dept == secondary_dept and secondary_person:
@@ -609,7 +613,9 @@ def delete_defect(defect_id, operator=None):
         defect_info = cursor.fetchone()
 
         if defect_info:
-            work_order, product_name, defect_type = defect_info
+            work_order = defect_info['work_order']
+            product_name = defect_info['product_name']
+            defect_type = defect_info['defect_type']
 
             # 刪除處理記錄
             cursor.execute("DELETE FROM processing_logs WHERE defect_id = ?", (defect_id,))
