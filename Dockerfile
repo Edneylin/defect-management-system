@@ -34,9 +34,5 @@ ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 # 暴露端口
 EXPOSE 8501
 
-# 健康檢查
-HEALTHCHECK --interval=30s --timeout=15s --start-period=90s --retries=5 \
-    CMD curl --fail http://localhost:8501/_stcore/health || exit 1
-
-# 啟動命令
+# 啟動命令（無健康檢查版本）
 CMD ["streamlit", "run", "defect_management_system.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true", "--server.enableCORS=false", "--server.enableXsrfProtection=false"] 

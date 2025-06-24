@@ -3,6 +3,5 @@ pandas==2.1.4
 plotly==5.17.0
 requests==2.31.0
 numpy==1.24.3
-datetime
 json5==0.9.14
 altair==5.2.0 
