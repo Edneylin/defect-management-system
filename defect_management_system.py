@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+不良品處理管理系統
+支持完整的不良品生命週期管理，包括登錄、追蹤、分析和通知功能
+"""
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -13,6 +19,19 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import threading
 import requests
+
+# 設置SQLite支持UTF-8
+sqlite3.register_adapter(str, lambda s: s.encode('utf-8'))
+sqlite3.register_converter("TEXT", lambda b: b.decode('utf-8'))
+
+def get_db_connection():
+    """
+    獲取數據庫連接，確保UTF-8編碼支持
+    """
+    conn = sqlite3.connect('defect_management.db', detect_types=sqlite3.PARSE_DECLTYPES)
+    conn.execute("PRAGMA encoding = 'UTF-8'")
+    conn.row_factory = sqlite3.Row  # 支持字典式訪問
+    return conn
 
 # 設定頁面配置
 st.set_page_config(
@@ -112,7 +131,7 @@ st.markdown("""
 
 
 def init_database():
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # 創建用戶表
@@ -295,7 +314,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def authenticate_user(username: str, password: str) -> Dict:
     """用戶認證"""
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -321,11 +340,11 @@ def authenticate_user(username: str, password: str) -> Dict:
         }
 
     conn.close()
-    return None
+    return {}
 
 def get_all_users():
     """獲取所有用戶"""
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -340,7 +359,7 @@ def get_all_users():
 def add_user(username: str, password: str, name: str, department: str, position: str, role: str) -> bool:
     """添加新用戶"""
     try:
-        conn = sqlite3.connect('defect_management.db')
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         password_hash = hash_password(password)
@@ -358,7 +377,7 @@ def add_user(username: str, password: str, name: str, department: str, position:
 
 def update_user_status(user_id: int, is_active: bool):
     """更新用戶狀態"""
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('UPDATE users SET is_active = ? WHERE id = ?', (1 if is_active else 0, user_id))
@@ -368,7 +387,7 @@ def update_user_status(user_id: int, is_active: bool):
 
 def reset_user_password(user_id: int, new_password: str):
     """重設用戶密碼"""
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     password_hash = hash_password(new_password)
@@ -382,7 +401,7 @@ def reset_user_password(user_id: int, new_password: str):
 
 def get_next_package_number(work_order):
     """獲取指定工單的下一個包數"""
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
@@ -396,7 +415,7 @@ def get_next_package_number(work_order):
 
 def get_work_order_stats(work_order):
     """獲取指定工單的統計信息"""
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # 獲取該工單的總不良數量和工單總數
@@ -425,7 +444,7 @@ def get_work_order_stats(work_order):
     }
 
 def add_defect(defect_data):
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # 計算截止時間
@@ -472,7 +491,7 @@ def add_defect(defect_data):
     return defect_id
 
 def get_defects(status=None):
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     query = '''
         SELECT id, work_order, product_name, defect_type, defect_level, quantity,
                package_number, description, responsible_dept, status, created_time, deadline,
@@ -491,7 +510,7 @@ def get_defects(status=None):
     return df
 
 def update_defect_status(defect_id, new_status, resolution=None, operator=None):
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     if new_status == '已完成':
@@ -518,7 +537,7 @@ def update_defect_status(defect_id, new_status, resolution=None, operator=None):
 
 def transfer_defect(defect_id, target_dept, transfer_reason, operator=None):
     """轉交不良品到其他部門"""
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # 先獲取不良品的責任部門和負責人信息
@@ -568,7 +587,7 @@ def transfer_defect(defect_id, target_dept, transfer_reason, operator=None):
     conn.close()
 
 def get_processing_logs(defect_id):
-    conn = sqlite3.connect('defect_management.db')
+    conn = get_db_connection()
     query = '''
         SELECT action, department, operator, comment, timestamp
         FROM processing_logs
@@ -582,7 +601,7 @@ def get_processing_logs(defect_id):
 def delete_defect(defect_id, operator=None):
     """刪除不良品記錄（包含相關的處理記錄）"""
     try:
-        conn = sqlite3.connect('defect_management.db')
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         # 先獲取要刪除的記錄信息（用於記錄日誌）
@@ -829,7 +848,7 @@ class NotificationManager:
 
     def check_overdue_defects(self):
         """檢查逾期不良品"""
-        conn = sqlite3.connect('defect_management.db')
+        conn = get_db_connection()
         query = """
         SELECT * FROM defects
         WHERE status IN ('待處理', '處理中')
@@ -2066,7 +2085,7 @@ def tracking_page():
                                     final_resolution += f" - {resolution_note}"
 
                                 # 更新為待次要單位簽核狀態
-                                conn = sqlite3.connect('defect_management.db')
+                                conn = get_db_connection()
                                 cursor = conn.cursor()
 
                                 # 確保secondary_dept不為空，如果為空則使用默認值
@@ -2150,7 +2169,7 @@ def tracking_page():
                             # 檢查是否需要第三責任人簽核
                             third_info = get_third_responsible_info(defect['resolution']) if defect['resolution'] else None
 
-                            conn = sqlite3.connect('defect_management.db')
+                            conn = get_db_connection()
                             cursor = conn.cursor()
 
                             if third_info:
@@ -2214,7 +2233,7 @@ def tracking_page():
                         if st.button("❌ 退回", key=f"approve_ng_{defect['id']}", use_container_width=True):
                             if reject_reason:
                                 # 退回給主要單位重新處理
-                                conn = sqlite3.connect('defect_management.db')
+                                conn = get_db_connection()
                                 cursor = conn.cursor()
 
                                 # 確保primary_dept不為空，如果為空則使用默認值
@@ -2266,7 +2285,7 @@ def tracking_page():
 
                         if st.button("✅ 最終通過", key=f"third_approve_ok_{defect['id']}", use_container_width=True):
                             # 更新為已完成狀態
-                            conn = sqlite3.connect('defect_management.db')
+                            conn = get_db_connection()
                             cursor = conn.cursor()
                             cursor.execute('''
                                 UPDATE defects
@@ -2303,7 +2322,7 @@ def tracking_page():
                         if st.button("❌ 退回重處理", key=f"third_approve_ng_{defect['id']}", use_container_width=True):
                             if third_reject_reason:
                                 # 退回給主要單位重新處理
-                                conn = sqlite3.connect('defect_management.db')
+                                conn = get_db_connection()
                                 cursor = conn.cursor()
 
                                 # 確保primary_dept不為空，如果為空則使用默認值
